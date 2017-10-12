@@ -11,14 +11,12 @@ package lxc
 // #include <lxc/lxccontainer.h>
 // #include <lxc/version.h>
 // #include "lxc-binding.h"
-// #ifndef LXC_DEVEL
-// #define LXC_DEVEL 0
-// #endif
 import "C"
 
 import (
 	"fmt"
 	"runtime"
+	"strings"
 	"unsafe"
 )
 
@@ -64,9 +62,12 @@ func Release(c *Container) bool {
 // Version returns the LXC version.
 func Version() string {
 	version := C.GoString(C.lxc_get_version())
-	if C.LXC_DEVEL == 1 {
-		version = fmt.Sprintf("%s (devel)", version)
+
+	// New liblxc versions append "-devel" when LXC_DEVEL is set.
+	if strings.HasSuffix(version, "-devel") {
+		return fmt.Sprintf("%s (devel)", version[:(len(version) - len("-devel"))])
 	}
+
 	return version
 }
 
@@ -200,34 +201,28 @@ func ActiveContainers(lxcpath ...string) []*Container {
 
 // VersionNumber returns the LXC version.
 func VersionNumber() (major int, minor int) {
-	major = C.LXC_VERSION_MAJOR
-	minor = C.LXC_VERSION_MINOR
+	ma := C.int(-1)
+	mi := C.int(-1)
+	pa := C.int(-1)
+
+	ret := int(C.go_lxc_get_version_numbers(&ma, &mi, &pa))
+	if (ret < 0) {
+		// Report 1.0 stable version which is essentially the minimal
+		// feature set.
+		major = 1
+		minor = 0
+		return
+	}
+
+	major = int(ma)
+	minor = int(mi)
 
 	return
 }
 
 // VersionAtLeast returns true when the tested version >= current version.
 func VersionAtLeast(major int, minor int, micro int) bool {
-	if C.LXC_DEVEL == 1 {
-		return true
-	}
-
-	if major > C.LXC_VERSION_MAJOR {
-		return false
-	}
-
-	if major == C.LXC_VERSION_MAJOR &&
-		minor > C.LXC_VERSION_MINOR {
-		return false
-	}
-
-	if major == C.LXC_VERSION_MAJOR &&
-		minor == C.LXC_VERSION_MINOR &&
-		micro > C.LXC_VERSION_MICRO {
-		return false
-	}
-
-	return true
+	return bool(C.go_lxc_version_at_least(C.int(major), C.int(minor), C.int(micro)))
 }
 
 // IsSupportedConfigItem returns true if the key belongs to a supported config item.

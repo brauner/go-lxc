@@ -2,6 +2,8 @@
 // Use of this source code is governed by a LGPLv2.1
 // license that can be found in the LICENSE file.
 
+extern int go_lxc_get_version_numbers(int *major, int *minor, int *patch);
+extern bool go_lxc_version_at_least(int major, int minor, int patch);
 extern bool go_lxc_add_device_node(struct lxc_container *c, const char *src_path, const char *dest_path);
 extern void go_lxc_clear_config(struct lxc_container *c);
 extern bool go_lxc_clear_config_item(struct lxc_container *c, const char *key);

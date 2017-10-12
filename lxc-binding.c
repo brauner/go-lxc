@@ -5,6 +5,7 @@
 // +build linux,cgo
 
 #include <stdbool.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <errno.h>
@@ -15,14 +16,84 @@
 
 #include "lxc-binding.h"
 
-#ifndef LXC_DEVEL
-#define LXC_DEVEL 0
-#endif
-
 #define VERSION_AT_LEAST(major, minor, micro)							\
 	((LXC_DEVEL == 1) || (!(major > LXC_VERSION_MAJOR ||					\
 	major == LXC_VERSION_MAJOR && minor > LXC_VERSION_MINOR ||				\
 	major == LXC_VERSION_MAJOR && minor == LXC_VERSION_MINOR && micro > LXC_VERSION_MICRO)))
+
+int go_lxc_get_version_numbers(int *major, int *minor, int *patch)
+{
+	int ret;
+	const char *version;
+	int v[3];
+
+	memset(v, -1, sizeof(v));
+
+	version = lxc_get_version();
+	ret = sscanf(version, "%d.%d.%d", &v[0], &v[1], &v[2]);
+	if (ret < 1)
+		return -1;
+
+	if (major)
+		*major = v[0];
+
+	if (minor)
+		*minor = v[1];
+
+	if (patch)
+		*patch = v[2];
+
+	return 0;
+}
+
+bool go_lxc_version_at_least(int major, int minor, int patch)
+{
+	int ret;
+	char *devel;
+	const char *version;
+	int v[3];
+	bool good_version = false;
+
+	version = lxc_get_version();
+
+	/* If this is a devel liblxc assume all features are available. */
+	devel = strrchr(version, '-');
+	if (devel)
+		good_version = !strcmp(devel, "-devel");
+
+	if (good_version)
+		return true;
+
+	memset(v, -1, sizeof(v));
+
+	ret = sscanf(version, "%d.%d.%d", &v[0], &v[1], &v[2]);
+	if (ret < 1)
+		return false;
+
+	/* Major version is greater. */
+	if (v[0] > major)
+		return true;
+
+	if (v[0] < major)
+		return false;
+
+	/* Minor number is greater.*/
+	if (v[1] > minor)
+		return true;
+
+	if (v[1] < minor)
+		return false;
+
+	/* Patch number is greater. */
+	if (v[2] > patch)
+		return true;
+
+	/* Patch numbers are equal. */
+	if (v[2] == patch)
+		return true;
+
+	return false;
+}
 
 bool go_lxc_defined(struct lxc_container *c) {
 	return c->is_defined(c);
